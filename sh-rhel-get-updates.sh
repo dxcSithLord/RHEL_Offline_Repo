@@ -115,10 +115,21 @@ _makeinstall() {
         echo $_target $_path 
         if [[ "$_path" == "$_target" ]]; then
           # Check for updated kernel and install that first
-	  # Need to check for centos/redhat/fedora instance for default repo to use
+	      # Check for centos/redhat/fedora instance for default repo to use
+	      case $(grep -E "^ID=" /etc/os-release | cut -f2 -d'"' ) in
+		    "centos") 
+			   medrep="c7-media"
+			   ;;
+			"redhat")
+			   medrep="rhel-media"
+			   ;;
+			"*")
+			   medrep="rhel-media"
+			   ;;
+		  esac
           sudo yum --assumeyes \
                    --disablerepo=* \
-                   --enablerepo=c7-media \
+                   --enablerepo=${medrep} \
                    list kernel \
                | grep -Pz "Available Packages([.|\n]+kernel)"
           resarr=( ${PIPESTATUS[@]} )
