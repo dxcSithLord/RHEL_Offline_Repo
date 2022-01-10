@@ -109,10 +109,9 @@ _makeinstall() {
   _target="/media/cdrom"
   _path=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
   mountpoint -q "$_target"
-  if mountpoint -q "$_target"; then 
+  if [[ $? == 0 ]]; then 
   # TODO - update script to add RPM GPG (promtped),
   # TODO - include makedvdrepo to make this source a repo directo from DVD
-  # TODO - call yum update, with exclude of main "RHEL 7 Server"
   # TODO - Create an exclude packages file so that yum doesn't touch them.  May be empty
 	echo $_target $_path 
 	if [[ "$_path" == "$_target" ]]; then
