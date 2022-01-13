@@ -16,7 +16,9 @@ updates.list   - a list of updates identified by yum.
 
 makedvdrepo.sh will attempt to mount the RHEL ISO (used to build the RHEL machine you are running from) onto /media/rhel7repo
 to execute:
+~~~
 ./makedvdrepo.sh
 sudo sh ./sh-centos-get-updates.sh 
+~~~
 
 You will be prompted if there are any updates that require additional dependencies - they will need to be applied before running again to download all required packages.
