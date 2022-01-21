@@ -201,7 +201,7 @@ _testdepend
     #
     # get software updates list
     #
-    sudo yum list updates | \
+    sudo yum list updates -d0 | \
         sed '1,2d' | \
         cut -f 1 -d ' ' | \
         grep -v "Updated" | \
