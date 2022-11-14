@@ -111,12 +111,14 @@ _makeinstall() {
   mountpoint -q "$_target"
   if [[ $? == 0 ]]; then 
   # TODO - update script to add RPM GPG (promtped),
-  # TODO - include makedvdrepo to make this source a repo directo from DVD
+  # TODO - include makedvdrepo to make this source a repo direct from DVD
   # TODO - Create an exclude packages file so that yum doesn't touch them.  May be empty
 	echo $_target $_path 
 	if [[ "$_path" == "$_target" ]]; then
 	  # Check for updated kernel and install that first
 	  # Check for centos/redhat/fedora instance for default repo to use
+          # TODO - ADD CHECK FOR RHEL version 7 or newer
+          # The following case will only currently work for RHEL/CentOS 7
 	  case $(grep -E "^ID=" /etc/os-release | cut -f2 -d'"' ) in
 		"centos") 
 		   medrep="c7-media"
@@ -193,9 +195,10 @@ _testdepend
     #_excluded=
     #
     # get installed software list
+    # Updated to correctly escape expression ".", "(" and ")" in egrep
     #
     sudo rpm -q -a --qf '%{Name}.%-7{arch}\n' | \
-        egrep -v -e 'MFEcmd.i686|MFErt.i686|McAfeeVSEForLinux.noarch|gpg-pubkey.(none)' | \
+        egrep -v -e 'MFEcmd.i686|MFErt.i686|McAfeeVSEForLinux.noarch|gpg-pubkey\.\(none\)' | \
         sed 's/ *$//' | \
         sort -u > installed.list 
     #
@@ -247,7 +250,7 @@ _testdepend
       if ! yumdownloader -d 2 \
                          --destdir=$_dest/updates \
                          --assumeyes \
-                         --resolve ${_installed[@]} != 0; then
+                         --resolve ${_installed[@]} ; then
         echo "Download error"
         exit 1
       else
