@@ -82,6 +82,12 @@ _testdepend() {
 #############################################
 _makerepo() {
   sudo createrepo -v $1
+  if [[ -d "$1/repodata" ]]; then
+    sudo chgrp wheel $1/repodata
+    sudo chmod g+rwx $1/repodata
+  else
+    echo "$1/repodata does not exist"
+  fi
 }
 #############################################
 # Create a new repo from the contents of $1
