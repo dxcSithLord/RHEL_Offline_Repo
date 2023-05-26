@@ -81,8 +81,18 @@ _testdepend() {
 #   path to repo
 #############################################
 _makerepo() {
-  sudo createrepo -v $1
+  local _repopath
+  _repopath="$1"
+  sudo createrepo -v "${_repopath}"
+  find "${_repopath}" -type d -ls | more
+  if [[ -d "${_repopath}/${reponame}" ]]; then
+    sudo chgrp wheel "${_repopath}/${reponame}"
+    sudo chmod g+rwx "${_repopath}/${reponame}"
+  else
+    echo "${_repopath}/${reponame} does not exist"
+  fi
 }
+
 #############################################
 # Create a new repo from the contents of $1
 # Globals:
@@ -170,6 +180,25 @@ EOF
   chmod ug+x $instfile
 }
 
+destArg() {
+  # place holder to manage and verify the argument values
+}
+#################################################
+# START of program
+# Globals:
+#  None
+# 
+# Arguments:
+#   -d : destination - path to where the repository will be downloaded to
+#   -f : filter - a regular expression to filter out unwanted packages
+#   -i : include file path - a file containing, one per line, a list of packages
+#   -r : repositoru name - name to GIVE the repository being created
+# 
+#################################################
+
+verbose='false'
+destArg
+
 trap '_quit' SIGINT
 #
 _dest="/data/repo/"
@@ -210,6 +239,8 @@ _testdepend
     # _required packages - not in installed and not in both - hence new
     #
     set -a _required
+    # Use the comm(on|pare) command to determine what is common (or not) between
+    # the first, second or both files
     _required=( $(comm -13 installed.list updates.list ) )
     #
     if ((  ${#_required[@]} == 0 )); then
@@ -251,8 +282,14 @@ _testdepend
         echo "Download error"
         exit 1
       else
-        _makerepo $_dest
+        printf -- '=%.0s' {1..50}
+	printf '\n'
+	echo " Creating local repository from downloaded files... "
+	printf -- '=%.0s' {1..50}
+	printf '\n'
+	_makerepo $_dest
          gpg --detach-sign --armor $1/repodata/repomd.xml
+	 # TODO : May need a signature here
 #        cat <<eof >> $_dest/${_reponame}.xml
 #eof
       fi 
