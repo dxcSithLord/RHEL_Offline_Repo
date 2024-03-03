@@ -1,0 +1,90 @@
+RedHat 7 System Update Notes
+
+yum list packages vs repo enabled
+
+1. Create repo specific lists - 80%
+2. List enabled repos where baseurl=http(s)
+	a) replicate repo structure in download area
+	b) create file based repo configuration from enabled repos
+3. Use specific lists to download from/to specific repo
+	E.g. repo EPEL - base for all red hat packages vs RedHat Server 7 Core repo
+	
+**** yumdownload **** - get all packages
+###### access.redhat.com/solutions/5543281
+repo_enabled=( `yum repolist -d0 2> /dev/null | sed '1d' | cut -f1 -d' '` )
+for myrepo in ${repo_enabled[@]}; do
+  mkdir -p /data/repo/${myrepo}
+  # do downloads
+  createrepo /data/repo/${myrepo}
+  find /var/cache/yum/x86_64/7Server/${myrepo} -name updateinfo.xml -exec cp {} /data/repo/${myrepo}/repodata/. \;
+  modifyrepo /data/repo/${myrepo}/repodata/updateinfo.xml /data/repo/${myrepo}/repodata
+
+yum clean all
+yum list-sec
+for reponame in (each directory in /var/cache/yum/x86_64/7Server/)
+  find /var/cache/yum/x86_64/7Server/${reponame} -name updateinfo.xml -exec cp {} /data/repo/${reponame}/repodata/updateinfo.xml
+  modifyrepo /data/repo/${reponame}/repodata/updateinfo.xml /data/repo/${reponame}/repodata
+next
+
+	
+File Structure
+
+root of ISO
+-> yum.repos.d/ -> local repo configs - to use this media
+   makedvdrepo.sh -> Install repo onto O/S - IF NOT already there (needed for redhat, but not Centos)
+   myrepos
+   ->	repo1
+		repo2
+		repo3
+		...
+		repon
+	sh-redhat-apply-update [-from [all|<repositorylist>]] | [-listrepo] | [ -security] [-nokernel]
+	
+4. Create specific functions if they don't already exist
+   yum --disablerepos="*" --enablerepo="cd-media" update
+   yum list installed vs rpm -qa --qf "%{Name}.%{-7arch}
+     --> yum command lists unique packages, but wraps lines where package names are long.
+	 --> rpm list is not unique and needs qualifier to NOT include package version.
+   yum list updates
+   yum repolist --> to list enabled repos 
+   yum repoinfo <reponame> --> to list details about specified repo
+   
+
+
+Sync small repos (with less than 20 packages)
+  sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-Clearswift
+  sudo yum clean all --verbose --enablerepo=*
+  
+  d_repos=$(sudo yum repolist disabled -d0 | grep -v "^repo id"  | cut -f1 -d' ' | sed -e 's/\!//' ) 
+  # need to remove ! from repo name - either with a clean or sed to remove the '!' character
+  
+  for r in ${d_repos[@]}; do echo "${r} hello"
+    sudo yum --disablerepo="*" --enablerepo="${r}" list updates -d0 > ${r}_updates.list
+  done
+  wc -l *available.list
+      9 cs-swg_available.list
+  20894 ext-cs-extra-packages-for-enterprise-linux_available.list
+   6939 ext-cs-rhel-7-server-optional-rpms_available.list
+   5438 ext-cs-rhel-7-server-rpms_available.list
+  13581 ext-cs-rhel-server-rhscl-7-rpms_available.list
+  46861 total
+  wc -l *updates.list
+  160 cs-rhel-7-media_updates.list
+    0 cs-swg_updates.list
+    2 ext-cs-extra-packages-for-enterprise-linux_updates.list
+    2 ext-cs-rhel-7-server-optional-rpms_updates.list
+  298 ext-cs-rhel-7-server-rpms_updates.list
+    0 ext-cs-rhel-server-rhscl-7-rpms_updates.list
+  462 total
+  reposync  --repoid=cs-swg --gpgcheck --download-metadata --newest-only --download_path=/data/iso/
+  
+  yum --disablerepo="*" --enablerepo="cs-swg" list installed
+  = 961
+  yum --disablerepo="*" --enablerepo="cs-swg" list available
+  14
+  
+  to trim the yum list updates or yum list installed:
+  yum list installed -d0   # This gives the list without the header or "your are not registered..." messages.  It does have "Installed Packages" as the first line.
+  yum list installed -d0 | grep -v -E "^Installed Packages|^Updated Packages" # trims the Header line
+  yum list installed -d0 | grep -v -E "^Installed Packages|^Updated Packages" | cut -f1 -d' ' # trims to all of the first fields, but
+  
