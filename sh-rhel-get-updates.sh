@@ -89,7 +89,7 @@ _makerepo() {
     sudo chgrp wheel "${_repopath}/${_reponame}"
     sudo chmod g+rwx "${_repopath}/${_reponame}"
   else
-    echo "${_repopath}/${reponame} does not exist"
+    echo "${_repopath}/${_reponame} does not exist"
   fi
 }
 
@@ -220,7 +220,7 @@ _reponame="pedvt"
     echo "Please wait..."
     # -- Update package database.
     if ! sudo dnf -d 0 makecache; then
-      echo "$(basename $0): Failed to update package cache."
+      echo "$(basename "$0"): Failed to update package cache."
       exit 1
     fi
     # -- Check for required packages.
@@ -247,7 +247,7 @@ _reponame="pedvt"
     set -a _required
     # Use the comm(on|pare) command to determine what is common (or not) between
     # the first, second or both files
-    _required=( $(comm -13 installed.list updates.list ) )
+    mapfile _required < <(comm -13 installed.list updates.list ) 
     #
     if ((  ${#_required[@]} == 0 )); then
       # -- Create folder for updates
@@ -261,19 +261,19 @@ _reponame="pedvt"
       # -- Get list of installed packages to be upgraded.
       #
       set -a _installed
-      _installed=( $(comm -2  installed.list updates.list ) )
+      mapfile _installed < <(comm -2  installed.list updates.list ) 
       #
       # -- Get list of installed packages that should be skipped (owing to unmet dependancies)
       # -- same as required, so should be empty on econd pass
       #
       set -a _skipped
-      _skipped=( $(comm -13 installed.list updates.list ) ) #
+      mapfile _skipped < <(comm -13 installed.list updates.list ) #
       
       # -- Download updated packages
-      if [[ "${verbose}" -eq "true" ]]; then
+      if [[ "${verbose}" = "true" ]]; then
         _message="  Attempting to download ${#_installed[@]} packages."
       else
-        _message="  Attempting to download ${#_installed[@]} packages.\n${_installed[@]}"
+        _message="  Attempting to download ${#_installed[@]} packages.\n${_installed[*]}"
       fi
       _position=1
       _width=$(tput cols)
@@ -288,7 +288,7 @@ _reponame="pedvt"
       if ! yumdownloader -d 2 \
                          --destdir="$_dest/updates" \
                          --assumeyes \
-                         --resolve ${_installed[@]} ; then
+                         --resolve "${_installed[@]}" ; then
         echo "Download error"
         exit 1
       else
@@ -309,7 +309,7 @@ _reponame="pedvt"
       # -- Write ISO image
       if ! genisoimage -f -J -joliet-long -r -allow-lowercase -allow-multidot \
         -o "${_dest}/$(date +%Y%m%d%H%M)-patch-cd.iso" "${_dest}" > /dev/null 2>&1; then
-         echo "$(basename $0): Write Failed"
+         echo "$(basename "$0"): Write Failed"
 	 exit 1
       fi
       #-- Remove temporary file and update folder
@@ -322,8 +322,8 @@ _reponame="pedvt"
       done
       _continue "Do you want to upgrade these packages?" 
       echo "  Upgrading...(Run again to generate new iso with upgrades)"
-      dnf -y upgrade ${_required[@]}
+      dnf -y upgrade "${_required[@]}"
     fi
   else
-    echo "$(basename $0): Required commands not installed - aborting."
+    echo "$(basename "$0"): Required commands not installed - aborting."
   fi
