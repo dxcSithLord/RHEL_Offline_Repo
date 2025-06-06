@@ -17,8 +17,14 @@ repofile="${repoName}.repo"
 /usr/bin/echo "Checking for media mount point at ${DVDMount}"
 [[ -d "${DVDMount}" ]]  ||  /usr/bin/sudo /usr/bin/mkdir -p "${DVDMount}" 
 /usr/bin/echo "Mounting media (sudo required)"
-$(/usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q) || \
-   /usr/bin/sudo /usr/bin/mount -o ro /dev/sr0 "${DVDMount}" || exit "Cant mount DVD"
+/usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q
+if (( $? == 0 )); then
+  /usr/bin/sudo /usr/bin/mount -o ro /dev/sr0 "${DVDMount}"
+  if (( $? >0 )); then
+    echo "Cant mount DVD"
+    exit 1
+  fi
+fi
 
 /bin/echo "Media mounted on ${DVDMount}"
 
@@ -41,7 +47,8 @@ $(/usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q) || \
 testnset () {
   key=$1
   val=$2
-  /usr/bin/grep "${key}=${val}" ~/${repofile} || /usr/bin/echo "${key}=${val}" >> ~/${repofile}
+  /usr/bin/grep -q "${key}=${val}" ~/${repofile}
+  (( $? == 0 )) /usr/bin/echo "${key}=${val}" >> ~/${repofile}
   return $?
 }
 
