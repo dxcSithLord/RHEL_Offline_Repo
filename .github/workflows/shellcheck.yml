@@ -1,0 +1,159 @@
+name: Shell Script Linting
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    name: Shellcheck
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Fetch full history for better diff analysis
+        fetch-depth: 0
+
+    - name: Install ShellCheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+
+    - name: Find shell scripts
+      id: find-scripts
+      run: |
+        # Find all shell scripts (various extensions and shebangs)
+        find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "*.ksh" -o -name "*.zsh" \) -print0 > /tmp/shell_files.txt
+        
+        # Also find files with shell shebangs
+        find . -type f -exec grep -l '^#!.*\(bash\|sh\|ksh\|zsh\)' {} \; 2>/dev/null | grep -v '\.git/' >> /tmp/shell_files_shebang.txt || true
+        
+        # Combine and deduplicate
+        cat /tmp/shell_files.txt | tr '\0' '\n' > /tmp/all_shell_files.txt
+        [ -f /tmp/shell_files_shebang.txt ] && cat /tmp/shell_files_shebang.txt >> /tmp/all_shell_files.txt
+        sort -u /tmp/all_shell_files.txt > /tmp/final_shell_files.txt
+        
+        # Output for next step
+        if [ -s /tmp/final_shell_files.txt ]; then
+          echo "found=true" >> $GITHUB_OUTPUT
+          echo "Shell scripts found:"
+          cat /tmp/final_shell_files.txt
+        else
+          echo "found=false" >> $GITHUB_OUTPUT
+          echo "No shell scripts found"
+        fi
+
+    - name: Run ShellCheck on all scripts
+      if: steps.find-scripts.outputs.found == 'true'
+      run: |
+        echo "Running ShellCheck on all shell scripts..."
+        
+        # Create results directory
+        mkdir -p shellcheck-results
+        
+        # Initialize counters
+        total_files=0
+        passed_files=0
+        failed_files=0
+        
+        # Run shellcheck on each file
+        while IFS= read -r file; do
+          if [ -n "$file" ] && [ -f "$file" ]; then
+            echo "Checking: $file"
+            total_files=$((total_files + 1))
+            
+            if shellcheck -f gcc "$file" > "shellcheck-results/$(basename "$file").log" 2>&1; then
+              echo "✅ PASS: $file"
+              passed_files=$((passed_files + 1))
+            else
+              echo "❌ FAIL: $file"
+              failed_files=$((failed_files + 1))
+              # Show the errors
+              cat "shellcheck-results/$(basename "$file").log"
+              echo ""
+            fi
+          fi
+        done < /tmp/final_shell_files.txt
+        
+        # Summary
+        echo ""
+        echo "=== ShellCheck Results ==="
+        echo "Total files checked: $total_files"
+        echo "Passed: $passed_files"
+        echo "Failed: $failed_files"
+        
+        # Fail the job if any files failed
+        if [ $failed_files -gt 0 ]; then
+          echo "❌ ShellCheck found issues in $failed_files file(s)"
+          exit 1
+        else
+          echo "✅ All shell scripts passed ShellCheck!"
+        fi
+
+    - name: Check changed files only (for pull requests)
+      if: github.event_name == 'pull_request' && steps.find-scripts.outputs.found == 'true'
+      run: |
+        echo "Analyzing changed files in this PR..."
+        
+        # Get list of changed files
+        git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/changed_files.txt
+        
+        # Filter for shell scripts among changed files
+        changed_shell_files=""
+        while IFS= read -r file; do
+          if [ -f "$file" ]; then
+            # Check if it's a shell script
+            if echo "$file" | grep -E '\.(sh|bash|ksh|zsh)$' > /dev/null || \
+               ([ -f "$file" ] && head -1 "$file" | grep -E '^#!.*\b(bash|sh|ksh|zsh)\b' > /dev/null 2>&1); then
+              changed_shell_files="$changed_shell_files$file\n"
+            fi
+          fi
+        done < /tmp/changed_files.txt
+        
+        if [ -n "$changed_shell_files" ]; then
+          echo "Changed shell scripts in this PR:"
+          echo -e "$changed_shell_files"
+          
+          echo -e "$changed_shell_files" | while IFS= read -r file; do
+            if [ -n "$file" ] && [ -f "$file" ]; then
+              echo "Re-checking changed file: $file"
+              shellcheck -f gcc "$file" || echo "Issues found in $file"
+            fi
+          done
+        else
+          echo "No shell scripts were changed in this PR"
+        fi
+
+    - name: Upload ShellCheck results
+      if: always() && steps.find-scripts.outputs.found == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: shellcheck-results
+        path: shellcheck-results/
+        retention-days: 30
+
+  # Optional: Additional shell validation
+  syntax-check:
+    runs-on: ubuntu-latest
+    name: Shell Syntax Check
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Bash syntax check
+      run: |
+        echo "Performing bash syntax validation..."
+        find . -name "*.sh" -o -name "*.bash" | while read -r script; do
+          echo "Syntax checking: $script"
+          if ! bash -n "$script"; then
+            echo "❌ Syntax error in: $script"
+            exit 1
+          else
+            echo "✅ Syntax OK: $script"
+          fi
+        done
