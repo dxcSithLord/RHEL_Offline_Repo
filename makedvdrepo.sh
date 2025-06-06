@@ -47,9 +47,10 @@ fi
 testnset () {
   key=$1
   val=$2
-  /usr/bin/grep -q "${key}=${val}" ~/${repofile}
-  (( $? == 0 )) /usr/bin/echo "${key}=${val}" >> ~/${repofile}
-  return $?
+  if (( $(/usr/bin/grep -c "${key}=${val}" ~/${repofile}) > 0 )); then
+     /usr/bin/echo "${key}=${val}" >> ~/${repofile}
+     return $?
+  fi
 }
 
 testnset "enabled" "1"
