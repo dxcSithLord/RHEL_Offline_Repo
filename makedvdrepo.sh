@@ -17,8 +17,12 @@ repofile="${repoName}.repo"
 /usr/bin/echo "Checking for media mount point at ${DVDMount}"
 [[ -d "${DVDMount}" ]]  ||  /usr/bin/sudo /usr/bin/mkdir -p "${DVDMount}" 
 /usr/bin/echo "Mounting media (sudo required)"
-$(/usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q) || \
-   /usr/bin/sudo /usr/bin/mount -o ro /dev/sr0 "${DVDMount}" || exit "Cant mount DVD"
+if ! /usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q; then
+  if ! /usr/bin/sudo /usr/bin/mount -o ro /dev/sr0 "${DVDMount}"; then
+    echo "Cant mount DVD"
+    exit 1
+  fi
+fi
 
 /bin/echo "Media mounted on ${DVDMount}"
 
@@ -41,8 +45,9 @@ $(/usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q) || \
 testnset () {
   key=$1
   val=$2
-  /usr/bin/grep "${key}=${val}" ~/${repofile} || /usr/bin/echo "${key}=${val}" >> ~/${repofile}
-  return $?
+  if ! /usr/bin/grep -qc "${key}=${val}" ~/${repofile}; then
+       /usr/bin/echo "${key}=${val}" >> ~/${repofile}
+  fi
 }
 
 testnset "enabled" "1"
@@ -53,8 +58,9 @@ testnset "gpgkey" "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
 # This allows both BaseOS and AppStream repositories on base DVD to be available
 # when mounted
 /usr/bin/echo "" >> ~/${repofile}
-/usr/bin/sed -e 's/BaseOS/AppStream/' ~/${repofile} >> ~/${repofile}
-
+/usr/bin/sed -e 's/BaseOS/AppStream/' ~/${repofile} > ~/${repofile}2
+cat ~/${repofile}2 >> ${repofile}
+rm  ~/${repofile}2
 /usr/bin/sudo /usr/bin/cp ~/${repofile} /etc/yum.repos.d/.
 /usr/bin/sudo /usr/bin/chmod 644 /etc/yum.repos.d/${repofile}
 
