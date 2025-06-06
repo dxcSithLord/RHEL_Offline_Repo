@@ -233,7 +233,7 @@ _testdepend
     #
     # get software updates list
     #
-    sudo yum list updates -d0 | \
+    sudo dnf list updates -d0 | \
         sed '1,2d' | \
         cut -f 1 -d ' ' | \
         grep -v "Updated" | \
@@ -313,7 +313,7 @@ _testdepend
       done
       _continue "Do you want to upgrade these packages?" 
       echo "  Upgrading...(Run again to generate new iso with upgrades)"
-      yum -y upgrade $_required
+      dnf -y upgrade $_required
     fi
   else
     echo "$(basename $0): Required commands not installed - aborting."
