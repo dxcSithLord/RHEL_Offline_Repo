@@ -37,7 +37,7 @@ _DEPEND_ON=( yumdownloader genisoimage createrepo )
 
 _continue() {
   while true; do
-    read -r -p "$@ (y/N): " _confirm
+    read -r -p "$* (y/N): " _confirm
     case $_confirm in
       [yY][eE][sS]|[yY]) break;; # Y/Yes - break out of loop and continue
       [Nn][Oo]|[Nn]) exit;;      # N/No - exit
@@ -83,13 +83,13 @@ _testdepend() {
 _makerepo() {
   local _repopath
   _repopath="$1"
-  sudo createrepo -v ${_repopath:="/media/rhel8dvd"}
+  sudo createrepo -v "${_repopath:='/media/rhel8dvd'}"
   find "${_repopath}" -type d -ls | more
   if [[ -d "$1/repodata" ]]; then
-    sudo chgrp wheel "${_repopath}/${reponame}"
-    sudo chmod g+rwx "${_repopath}/${reponame}"
+    sudo chgrp wheel "${_repopath}/${_reponame}"
+    sudo chmod g+rwx "${_repopath}/${_reponame}"
   else
-    echo "${_repopath}/${reponame} does not exist"
+    echo "${_repopath}/${_reponame} does not exist"
   fi
 }
 
@@ -108,8 +108,8 @@ _makeinstall() {
   # --Display Packages that have failed to download - if any
   # -- Create install script
   echo "  Create Install script."
-  if echo "#/bin/bash" >  $instfile; then
-    cat >> $instfile <<-'EOF'
+  if echo "#/bin/bash" >  "${instfile}"; then
+    cat >> "${instfile}" <<-'EOF'
   #
   #-- install - Alistair AMABILE - 6th Jan 2022
   #-- Based on work by Duncan MAYALL/Michael TOLCHER - 24 May 16 
@@ -123,8 +123,8 @@ _makeinstall() {
   # TODO - update script to add RPM GPG (promtped),
   # TODO - include makedvdrepo to make this source a repo direct from DVD
   # TODO - Create an exclude packages file so that yum doesn't touch them.  May be empty
-	echo $_target $_path 
-	if [[ "$_path" == "$_target" ]]; then
+	echo ${_target} ${_path} 
+	if [[ "${_path}" == "${_target}" ]]; then
 	  # Check for updated kernel and install that first
 	  # Check for centos/redhat/fedora instance for default repo to use
           # TODO - ADD CHECK FOR RHEL version 7 or newer
@@ -140,7 +140,7 @@ _makeinstall() {
 		   medrep="rhel-media"
 		   ;;
 	  esac
-	  sudo yum --assumeyes \
+	  sudo dnf --assumeyes \
 			   --disablerepo=* \
 			   --enablerepo=${medrep} \
 			   list kernel \
@@ -148,7 +148,7 @@ _makeinstall() {
 	  resarr=( ${PIPESTATUS[@]} )
 	  # if kernel is available, install that (can't update kernel, only install)
 	  if [[ ${resarr[-1]} == 0 ]]; then
-		 sudo yum --assumeyes \
+		 sudo dnf --assumeyes \
 			  --disablerepo=* \
 			  --enablerepo=${medrep} \
 			  install kernel \
@@ -161,29 +161,30 @@ _makeinstall() {
 		  exit 1
 		  fi
 	  fi
-	  sudo yum --assumeyes \
+	  sudo dnf --assumeyes \
 			--disablerepo=* \
 			--enablerepo=${medrep} \
 			update  
 
 	else
-	  echo "Script must be run in $_target."
+	  echo "Script must be run in ${_target}."
 	fi
   else
-	echo "$_target not mounted." 
+	echo "${_target} not mounted." 
   fi
   #
   # 
 EOF
   else
-    echo "Unable to write to $instfile"
+    echo "Unable to write to ${instfile}"
   fi
   # -- Make install script execuable
-  chmod ug+x $instfile
+  chmod ug+x "${instfile}"
 }
 
 destArg() {
   # place holder to manage and verify the argument values
+  echo ""
 }
 #################################################
 # START of program
@@ -209,8 +210,7 @@ _reponame="pedvt"
 #
 #
 #
-_testdepend
-  if [[ $? == 0 ]]; then
+  if _testdepend; then
     # -- Confirm that user wants to proceed
     echo
     echo "Note - It can take a couple of hours or more to download all the updated"
@@ -219,7 +219,10 @@ _testdepend
     _continue "Do you want to continue?"
     echo "Please wait..."
     # -- Update package database.
-    sudo yum -d 0 makecache || (echo "$basename $0): Failed to update package cache."; exit 1)
+    if ! sudo dnf -d 0 makecache; then
+      echo "$(basename "$0"): Failed to update package cache."
+      exit 1
+    fi
     # -- Check for required packages.
     #_excluded=
     #
@@ -227,13 +230,13 @@ _testdepend
     # Updated to correctly escape expression ".", "(" and ")" in egrep
     #
     sudo rpm -q -a --qf '%{Name}.%-7{arch}\n' | \
-        egrep -v -e 'MFEcmd.i686|MFErt.i686|McAfeeVSEForLinux.noarch|gpg-pubkey\.\(none\)' | \
+        grep -v -E 'MFEcmd.i686|MFErt.i686|McAfeeVSEForLinux.noarch|gpg-pubkey\.\(none\)' | \
         sed 's/ *$//' | \
         sort -u > installed.list 
     #
     # get software updates list
     #
-    sudo yum list updates -d0 | \
+    sudo dnf list updates -d0 | \
         sed '1,2d' | \
         cut -f 1 -d ' ' | \
         grep -v "Updated" | \
@@ -244,7 +247,7 @@ _testdepend
     set -a _required
     # Use the comm(on|pare) command to determine what is common (or not) between
     # the first, second or both files
-    _required=( $(comm -13 installed.list updates.list ) )
+    mapfile _required < <(comm -13 installed.list updates.list ) 
     #
     if ((  ${#_required[@]} == 0 )); then
       # -- Create folder for updates
@@ -258,16 +261,20 @@ _testdepend
       # -- Get list of installed packages to be upgraded.
       #
       set -a _installed
-      _installed=( $(comm -2  installed.list updates.list ) )
+      mapfile _installed < <(comm -2  installed.list updates.list ) 
       #
       # -- Get list of installed packages that should be skipped (owing to unmet dependancies)
       # -- same as required, so should be empty on econd pass
       #
       set -a _skipped
-      _skipped=( $(comm -13 installed.list updates.list ) ) #
+      mapfile _skipped < <(comm -13 installed.list updates.list ) #
       
       # -- Download updated packages
-      _message="  Attempting to download $( echo $_installed | wc -w ) packages."
+      if [[ "${verbose}" = "true" ]]; then
+        _message="  Attempting to download ${#_installed[@]} packages."
+      else
+        _message="  Attempting to download ${#_installed[@]} packages.\n${_installed[*]}"
+      fi
       _position=1
       _width=$(tput cols)
       echo "$_message"
@@ -279,9 +286,9 @@ _testdepend
 # TODO - Option to load from file the list of packages to download
 #
       if ! yumdownloader -d 2 \
-                         --destdir=$_dest/updates \
+                         --destdir="$_dest/updates" \
                          --assumeyes \
-                         --resolve ${_installed[@]} ; then
+                         --resolve "${_installed[@]}" ; then
         echo "Download error"
         exit 1
       else
@@ -290,31 +297,33 @@ _testdepend
 	echo " Creating local repository from downloaded files... "
 	printf -- '=%.0s' {1..50}
 	printf '\n'
-	_makerepo $_dest
-         gpg --detach-sign --armor $1/repodata/repomd.xml
+	_makerepo "${_dest}"
+         gpg --detach-sign --armor "$1/repodata/repomd.xml"
 	 # TODO : May need a signature here
 #        cat <<eof >> $_dest/${_reponame}.xml
 #eof
       fi 
  
-     _makeinstall $_dest/install.sh
+      _makeinstall "$_dest/install.sh"
 
       # -- Write ISO image
-      genisoimage -f -J -joliet-long -r -allow-lowercase -allow-multidot \
-        -o $_dest/`(date +%Y%m%d%H%M)`-patch-cd.iso $_dest > /dev/null 2>&1 \
-        || (echo "$(basename $0): Write Failed": exit 1)
+      if ! genisoimage -f -J -joliet-long -r -allow-lowercase -allow-multidot \
+        -o "${_dest}/$(date +%Y%m%d%H%M)-patch-cd.iso" "${_dest}" > /dev/null 2>&1; then
+         echo "$(basename "$0"): Write Failed"
+	 exit 1
+      fi
       #-- Remove temporary file and update folder
       echo "Deleting temporary files."
       # rm -rf $_dest/updates 2&> /dev/null
     else
       echo "  Following packages need updating:"
-      for _package in $_required; do
+      for _package in "${_required[@]}"; do
         echo "    $_package"
       done
       _continue "Do you want to upgrade these packages?" 
       echo "  Upgrading...(Run again to generate new iso with upgrades)"
-      yum -y upgrade $_required
+      dnf -y upgrade "${_required[@]}"
     fi
   else
-    echo "$(basename $0): Required commands not installed - aborting."
+    echo "$(basename "$0"): Required commands not installed - aborting."
   fi
