@@ -184,6 +184,7 @@ EOF
 
 destArg() {
   # place holder to manage and verify the argument values
+  echo ""
 }
 #################################################
 # START of program
