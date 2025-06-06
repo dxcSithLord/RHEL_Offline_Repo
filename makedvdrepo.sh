@@ -17,10 +17,8 @@ repofile="${repoName}.repo"
 /usr/bin/echo "Checking for media mount point at ${DVDMount}"
 [[ -d "${DVDMount}" ]]  ||  /usr/bin/sudo /usr/bin/mkdir -p "${DVDMount}" 
 /usr/bin/echo "Mounting media (sudo required)"
-/usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q
-if (( $? == 0 )); then
-  /usr/bin/sudo /usr/bin/mount -o ro /dev/sr0 "${DVDMount}"
-  if (( $? >0 )); then
+if /usr/bin/mount | /usr/bin/grep -E "^/dev/sr0 on ${DVDMount}" -q; then
+  if /usr/bin/sudo /usr/bin/mount -o ro /dev/sr0 "${DVDMount}"; then
     echo "Cant mount DVD"
     exit 1
   fi
@@ -49,7 +47,9 @@ testnset () {
   val=$2
   if (( $(/usr/bin/grep -c "${key}=${val}" ~/${repofile}) > 0 )); then
      /usr/bin/echo "${key}=${val}" >> ~/${repofile}
-     return $?
+     return 0
+  else
+     return 1
   fi
 }
 
@@ -61,8 +61,9 @@ testnset "gpgkey" "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release"
 # This allows both BaseOS and AppStream repositories on base DVD to be available
 # when mounted
 /usr/bin/echo "" >> ~/${repofile}
-/usr/bin/sed -e 's/BaseOS/AppStream/' ~/${repofile} >> ~/${repofile}
-
+/usr/bin/sed -e 's/BaseOS/AppStream/' ~/${repofile} > ~/${repofile}2
+cat ~/${repofile}2 >> ${repofile}
+rm  ~/${repofile}2
 /usr/bin/sudo /usr/bin/cp ~/${repofile} /etc/yum.repos.d/.
 /usr/bin/sudo /usr/bin/chmod 644 /etc/yum.repos.d/${repofile}
 
