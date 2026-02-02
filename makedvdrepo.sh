@@ -7,7 +7,7 @@
 # Updated with comments and frendly user info
 # Updated commands to include full path
 
-OSver="rhel8"
+OSver="rhel9"
 DVDMount="/media/${OSver}"
 repoName="${OSver}dvd"
 repofile="${repoName}.repo"
